@@ -1,0 +1,122 @@
+/**
+ * Форматирование таблицы Движения
+ * Группирует операции по Operation_ID и добавляет рамки
+ */
+function formatMovements() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Движения");
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert("Лист 'Движения' не найден!");
+    return;
+  }
+  
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  
+  if (lastRow <= 1) {
+    SpreadsheetApp.getUi().alert("Нет данных для форматирования");
+    return;
+  }
+  
+  // Очищаем предыдущее форматирование (кроме заголовка)
+  const dataRange = sheet.getRange(2, 1, lastRow - 1, lastCol);
+  dataRange.setBorder(false, false, false, false, false, false);
+  dataRange.setBackground(null);
+  
+  // Получаем данные
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  
+  // Находим колонку Operation_ID (E = индекс 4)
+  const opIdCol = 4; // E column (0-indexed)
+  
+  // Группируем строки по Operation_ID
+  let currentOpId = null;
+  let groupStart = 2; // Начинаем со 2-й строки (после заголовка)
+  let colorIndex = 0;
+  
+  // Цвета для чередования групп
+  const colors = [
+    "#FFFFFF", // Белый
+    "#F8F9FA", // Светло-серый
+  ];
+  
+  // Цвет рамки
+  const borderColor = "#E0E0E0";
+  
+  for (let i = 0; i < data.length; i++) {
+    const rowNum = i + 2; // Номер строки в таблице
+    const opId = data[i][opIdCol];
+    
+    // Пропускаем пустые строки
+    if (!opId || opId === "") {
+      continue;
+    }
+    
+    if (currentOpId === null) {
+      currentOpId = opId;
+      groupStart = rowNum;
+    } else if (opId !== currentOpId) {
+      // Завершаем предыдущую группу - добавляем рамку
+      formatGroup(sheet, groupStart, rowNum - 1, lastCol, colors[colorIndex % 2]);
+      colorIndex++;
+      
+      // Начинаем новую группу
+      currentOpId = opId;
+      groupStart = rowNum;
+    }
+  }
+  
+  // Форматируем последнюю группу
+  if (currentOpId !== null) {
+    formatGroup(sheet, groupStart, lastRow, lastCol, colors[colorIndex % 2]);
+  }
+  
+  SpreadsheetApp.getUi().alert("✅ Форматирование завершено!");
+}
+
+/**
+ * Форматирует группу строк - добавляет рамку и фон
+ */
+function formatGroup(sheet, startRow, endRow, lastCol, bgColor) {
+  const range = sheet.getRange(startRow, 1, endRow - startRow + 1, lastCol);
+  
+  // Фон
+  range.setBackground(bgColor);
+  
+  // Толстая рамка вокруг группы
+  range.setBorder(
+    true, true, true, true,  // top, left, bottom, right
+    false, false,            // vertical, horizontal (внутренние)
+    "#4A4A4A",              // цвет
+    SpreadsheetApp.BorderStyle.SOLID_MEDIUM
+  );
+}
+
+/**
+ * Добавляет меню в таблицу
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu("🔧 Склад")
+    .addItem("📊 Форматировать таблицу", "formatMovements")
+    .addItem("🧹 Очистить форматирование", "clearFormatting")
+    .addToUi();
+}
+
+/**
+ * Очищает форматирование
+ */
+function clearFormatting() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Движения");
+  if (!sheet) return;
+  
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  
+  if (lastRow <= 1) return;
+  
+  const dataRange = sheet.getRange(2, 1, lastRow - 1, lastCol);
+  dataRange.setBorder(false, false, false, false, false, false);
+  dataRange.setBackground(null);
+  
+  SpreadsheetApp.getUi().alert("✅ Форматирование очищено");
+}

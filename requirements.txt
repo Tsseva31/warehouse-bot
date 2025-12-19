@@ -1,0 +1,17 @@
+# Warehouse Bot v1.2 - Dependencies
+# Python 3.10+ required
+
+# Telegram Bot API (v20+ with async support)
+python-telegram-bot>=20.0,<22.0
+
+# Fix APScheduler timezone issue (required by python-telegram-bot JobQueue)
+APScheduler>=3.10.0,<4.0.0
+pytz>=2024.1
+
+# Google APIs
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+gspread>=5.12.0
+
+# Environment variables
+python-dotenv>=1.0.0
