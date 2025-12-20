@@ -14,7 +14,20 @@ from dotenv import load_dotenv
 # Load .env
 # ========================================
 load_dotenv()
+# В config.py после load_dotenv()
 
+# Если JSON передан через переменную окружения
+if os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") and not Path(GOOGLE_SERVICE_ACCOUNT_FILE).exists():
+    import json
+    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    with open(GOOGLE_SERVICE_ACCOUNT_FILE, 'w', encoding='utf-8') as f:
+        # Если это строка, пробуем распарсить и записать с форматированием
+        try:
+            sa_dict = json.loads(sa_json)
+            json.dump(sa_dict, f, indent=2)
+        except:
+            # Если уже валидный JSON, пишем как есть
+            f.write(sa_json)
 # ========================================
 # TELEGRAM
 # ========================================
