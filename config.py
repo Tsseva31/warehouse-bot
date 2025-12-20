@@ -7,6 +7,7 @@ Compatible with:
 """
 
 import os
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -14,20 +15,7 @@ from dotenv import load_dotenv
 # Load .env
 # ========================================
 load_dotenv()
-# В config.py после load_dotenv()
 
-# Если JSON передан через переменную окружения
-if os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") and not Path(GOOGLE_SERVICE_ACCOUNT_FILE).exists():
-    import json
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-    with open(GOOGLE_SERVICE_ACCOUNT_FILE, 'w', encoding='utf-8') as f:
-        # Если это строка, пробуем распарсить и записать с форматированием
-        try:
-            sa_dict = json.loads(sa_json)
-            json.dump(sa_dict, f, indent=2)
-        except:
-            # Если уже валидный JSON, пишем как есть
-            f.write(sa_json)
 # ========================================
 # TELEGRAM
 # ========================================
@@ -40,6 +28,22 @@ GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv(
     "GOOGLE_SERVICE_ACCOUNT_FILE",
     "service-account.json"
 )
+
+# ========================================
+# Create service account file from env var if needed
+# IMPORTANT: must be AFTER GOOGLE_SERVICE_ACCOUNT_FILE is defined
+# ========================================
+if os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") and not Path(GOOGLE_SERVICE_ACCOUNT_FILE).exists():
+    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    try:
+        sa_dict = json.loads(sa_json)
+        with open(GOOGLE_SERVICE_ACCOUNT_FILE, "w", encoding="utf-8") as f:
+            json.dump(sa_dict, f, indent=2)
+        print(f"✅ Created {GOOGLE_SERVICE_ACCOUNT_FILE} from environment variable")
+    except Exception as e:
+        print(f"⚠️ Error creating service account file: {e}")
+        with open(GOOGLE_SERVICE_ACCOUNT_FILE, "w", encoding="utf-8") as f:
+            f.write(sa_json)
 
 # ========================================
 # GOOGLE SHEETS (IDs НЕ МЕНЯТЬ!)
@@ -80,9 +84,9 @@ CACHE_REFRESH_MINUTES = int(os.getenv("CACHE_REFRESH_MINUTES", 30))
 # ========================================
 SEPARATOR_ROWS = 2
 SEPARATOR_COLOR = {
-    'red': 1.0,
-    'green': 0.976,
-    'blue': 0.769
+    "red": 1.0,
+    "green": 0.976,
+    "blue": 0.769,
 }  # #FFF9C4
 
 # ========================================
