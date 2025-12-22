@@ -32,33 +32,56 @@ GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv(
 # ========================================
 # Create service account file from environment variable
 # ========================================
-if os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") and not Path(GOOGLE_SERVICE_ACCOUNT_FILE).exists():
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+if os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON"):
+    import json
+    sa_json_raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
     
     try:
-        # Чистим строку от возможных проблемных символов
-        # Убираем переносы строк, лишние пробелы, экранирование
-        sa_json_clean = sa_json.strip()
+        # Парсим JSON
+        sa_dict = json.loads(sa_json_raw)
         
-        # Если JSON содержит экранированные переносы строк - заменяем на реальные
-        if '\\n' in sa_json_clean:
-            sa_json_clean = sa_json_clean.replace('\\n', '\n')
+        # КРИТИЧЕСКИ ВАЖНО: Правильная обработка private_key
+        if 'private_key' in sa_dict and isinstance(sa_dict['private_key'], str):
+            # Проверяем что там есть
+            pk = sa_dict['private_key']
+            
+            # Если есть литеральные \n (строка "\\n"), заменяем на реальные
+            if '\\n' in pk:
+                pk = pk.replace('\\n', '\n')
+            
+            # Если private_key не начинается с "-----BEGIN", значит он в одну строку
+            if not pk.startswith('-----BEGIN'):
+                # Ищем маркеры и вставляем переносы
+                pk = pk.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+                pk = pk.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----\n')
+            
+            sa_dict['private_key'] = pk
+            
+            print(f"✅ Processed private_key (length: {len(pk)} chars)")
         
-        # Пробуем распарсить как JSON (для валидации)
-        sa_dict = json.loads(sa_json_clean)
-        
-        # Записываем валидный JSON в файл
+        # Записываем корректный JSON
         with open(GOOGLE_SERVICE_ACCOUNT_FILE, 'w', encoding='utf-8') as f:
             json.dump(sa_dict, f, indent=2, ensure_ascii=False)
         
         print(f"✅ Created {GOOGLE_SERVICE_ACCOUNT_FILE} from environment variable")
         
+        # Проверяем что файл валидный
+        with open(GOOGLE_SERVICE_ACCOUNT_FILE, 'r', encoding='utf-8') as f:
+            test = json.load(f)
+        print(f"✅ Validated {GOOGLE_SERVICE_ACCOUNT_FILE} - JSON is valid")
+        
     except json.JSONDecodeError as e:
         print(f"❌ JSON decode error: {e}")
-        print(f"   First 200 chars of JSON: {sa_json[:200]}")
+        print(f"   Position: {e.pos}")
+        if hasattr(e, 'pos') and e.pos:
+            start = max(0, e.pos - 50)
+            end = min(len(sa_json_raw), e.pos + 50)
+            print(f"   Context: {sa_json_raw[start:end]}")
         raise RuntimeError(f"Invalid JSON in GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
     except Exception as e:
         print(f"❌ Error creating service account file: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 # ========================================
