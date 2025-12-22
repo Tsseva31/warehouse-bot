@@ -30,20 +30,36 @@ GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv(
 )
 
 # ========================================
-# Create service account file from env var if needed
-# IMPORTANT: must be AFTER GOOGLE_SERVICE_ACCOUNT_FILE is defined
+# Create service account file from environment variable
 # ========================================
 if os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") and not Path(GOOGLE_SERVICE_ACCOUNT_FILE).exists():
     sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    
     try:
-        sa_dict = json.loads(sa_json)
-        with open(GOOGLE_SERVICE_ACCOUNT_FILE, "w", encoding="utf-8") as f:
-            json.dump(sa_dict, f, indent=2)
+        # Чистим строку от возможных проблемных символов
+        # Убираем переносы строк, лишние пробелы, экранирование
+        sa_json_clean = sa_json.strip()
+        
+        # Если JSON содержит экранированные переносы строк - заменяем на реальные
+        if '\\n' in sa_json_clean:
+            sa_json_clean = sa_json_clean.replace('\\n', '\n')
+        
+        # Пробуем распарсить как JSON (для валидации)
+        sa_dict = json.loads(sa_json_clean)
+        
+        # Записываем валидный JSON в файл
+        with open(GOOGLE_SERVICE_ACCOUNT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(sa_dict, f, indent=2, ensure_ascii=False)
+        
         print(f"✅ Created {GOOGLE_SERVICE_ACCOUNT_FILE} from environment variable")
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON decode error: {e}")
+        print(f"   First 200 chars of JSON: {sa_json[:200]}")
+        raise RuntimeError(f"Invalid JSON in GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
     except Exception as e:
-        print(f"⚠️ Error creating service account file: {e}")
-        with open(GOOGLE_SERVICE_ACCOUNT_FILE, "w", encoding="utf-8") as f:
-            f.write(sa_json)
+        print(f"❌ Error creating service account file: {e}")
+        raise
 
 # ========================================
 # GOOGLE SHEETS (IDs НЕ МЕНЯТЬ!)
