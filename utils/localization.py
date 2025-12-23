@@ -233,6 +233,18 @@ MSG = {
 
 # === HELPER FUNCTIONS ===
 
+def _escape_markdown(text):
+    """Escape Markdown special characters for Telegram"""
+    if not text:
+        return ""
+    text = str(text)
+    # Экранируем специальные символы Markdown v2
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
+
 def get_qty_buttons():
     """
     Generate quantity numpad buttons.
@@ -251,24 +263,26 @@ def format_position_summary(pos_num, qty, photos_count):
     Format position summary for display.
     v1.2: Removed comment from position summary (only final comment).
     """
-    pos_num = str(pos_num)
-    qty = str(qty)
-    photos_count = str(photos_count)
+    # Экранируем пользовательские данные
+    pos_num = _escape_markdown(str(pos_num))
+    qty = _escape_markdown(str(qty))
+    photos_count = _escape_markdown(str(photos_count))
     return f"✅ *#{pos_num}* | 📦 {qty} | 📸 {photos_count}"
 
 
 def format_operation_summary(op_type, counterparty, positions, employee):
-    """Format full operation summary"""
-    op_type = str(op_type)
-    counterparty = str(counterparty)
-    employee = str(employee)
+    """Format full operation summary with Markdown escaping"""
+    # Экранируем все пользовательские данные
+    op_type_safe = _escape_markdown(str(op_type))
+    counterparty_safe = _escape_markdown(str(counterparty))
+    employee_safe = _escape_markdown(str(employee))
     
-    emoji = "📥" if "Приёмка" in op_type else "📤"
+    emoji = "📥" if "Приёмка" in str(op_type) or "รับ" in str(op_type) else "📤"
     
     lines = [
-        f"{emoji} *{op_type}*",
-        f"👤 {counterparty}",
-        f"👷 {employee}",
+        f"{emoji} *{op_type_safe}*",
+        f"👤 {counterparty_safe}",
+        f"👷 {employee_safe}",
         "",
         f"📦 *Позиций / รายการ:* {len(positions)}",
         "━━━━━━━━━━━━━━━",
@@ -283,11 +297,11 @@ def format_operation_summary(op_type, counterparty, positions, employee):
         total_qty += qty
         total_photos += photos
         
-        pos_num = str(pos.get('number', ''))
-        qty_str = str(qty)
-        photos_str = str(photos) if photos > 0 else ""
+        pos_num = _escape_markdown(str(pos.get('number', '')))
+        qty_str = _escape_markdown(str(qty))
+        photos_str = _escape_markdown(str(photos)) if photos > 0 else ""
         
-        line = f"  {pos_num}. 📦 {qty_str} 📸{photos_str}"
+        line = f"  {pos_num}\\. 📦 {qty_str} 📸{photos_str}"
         lines.append(line)
     
     lines.extend([
