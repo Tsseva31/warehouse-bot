@@ -50,3 +50,4 @@ htmlcov/
 
 # Docs (optional, uncomment if needed)
 # docs/*.pdf
+"service-account-minified.txt" 
