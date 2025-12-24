@@ -261,30 +261,24 @@ def get_qty_buttons():
 def format_position_summary(pos_num, qty, photos_count):
     """
     Format position summary for display.
-    v1.2: Removed comment from position summary (only final comment).
+    v1.2.1: Plain text, no Markdown - safer!
     """
-    # Экранируем пользовательские данные
-    pos_num = _escape_markdown(str(pos_num))
-    qty = _escape_markdown(str(qty))
-    photos_count = _escape_markdown(str(photos_count))
-    return f"✅ *#{pos_num}* | 📦 {qty} | 📸 {photos_count}"
+    return f"✅ #{pos_num} | 📦 {qty} шт | 📸 {photos_count}"
 
 
 def format_operation_summary(op_type, counterparty, positions, employee):
-    """Format full operation summary with Markdown escaping"""
-    # Экранируем все пользовательские данные
-    op_type_safe = _escape_markdown(str(op_type))
-    counterparty_safe = _escape_markdown(str(counterparty))
-    employee_safe = _escape_markdown(str(employee))
-    
+    """
+    Format full operation summary.
+    v1.2.1: Plain text, NO Markdown - safer with user data!
+    """
     emoji = "📥" if "Приёмка" in str(op_type) or "รับ" in str(op_type) else "📤"
     
     lines = [
-        f"{emoji} *{op_type_safe}*",
-        f"👤 {counterparty_safe}",
-        f"👷 {employee_safe}",
+        f"{emoji} {op_type}",
+        f"👤 {counterparty}",
+        f"👷 {employee}",
         "",
-        f"📦 *Позиций / รายการ:* {len(positions)}",
+        f"📦 Позиций / รายการ: {len(positions)}",
         "━━━━━━━━━━━━━━━",
     ]
     
@@ -297,12 +291,10 @@ def format_operation_summary(op_type, counterparty, positions, employee):
         total_qty += qty
         total_photos += photos
         
-        pos_num = _escape_markdown(str(pos.get('number', '')))
-        qty_str = _escape_markdown(str(qty))
-        photos_str = _escape_markdown(str(photos)) if photos > 0 else ""
+        pos_num = pos.get('number', '?')
+        photos_str = f" 📸{photos}" if photos > 0 else ""
         
-        line = f"  {pos_num}\\. 📦 {qty_str} 📸{photos_str}"
-        lines.append(line)
+        lines.append(f"  {pos_num}. 📦 {qty}{photos_str}")
     
     lines.extend([
         "━━━━━━━━━━━━━━━",

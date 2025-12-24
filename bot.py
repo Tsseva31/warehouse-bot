@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Warehouse Bot v1.2 - Fixed UTF-8"""
+"""Warehouse Bot v1.2.1 - Fixed Markdown issues"""
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -246,14 +246,20 @@ async def handle_vehicle_comment(update: Update, context: ContextTypes.DEFAULT_T
         return VEHICLE_COMMENT
     context.user_data['comment'] = "" if text in [BTN["skip"], BTN["no_comment"]] else text[:config.MAX_COMMENT_LENGTH]
     await update.message.reply_text("⏳ Сохранение... / กำลังบันทึก...", reply_markup=ReplyKeyboardRemove())
+    
+    saved = False
     try:
+        logger.info("[VEHICLE] Uploading photos to Drive...")
         links = drive_handler.upload_vehicle_photos(
             context.user_data['temp_photos'],
             context.user_data['vehicle_id'],
             context.user_data['vehicle_op_type'])
+        logger.info(f"[VEHICLE] Uploaded {len(links)} photos")
+        
         for tf in context.user_data['temp_photos']:
             try: Path(tf).unlink()
             except: pass
+        
         vehicle_data = {
             'date': datetime.now().strftime("%Y-%m-%d"),
             'time': datetime.now().strftime("%H:%M:%S"),
@@ -263,16 +269,21 @@ async def handle_vehicle_comment(update: Update, context: ContextTypes.DEFAULT_T
             'comment': context.user_data.get('comment', ''),
             'employee': context.user_data['employee']
         }
-        op_emoji = "🟢" if context.user_data['vehicle_op_type'] == "Въезд" else "🔴"
-        if sheets_handler.add_vehicle(vehicle_data):
-            await update.message.reply_text(
-                f"✅ *{MSG['operation_saved']}*\n{op_emoji} {context.user_data['vehicle_op_type']}\n🚛 {context.user_data['vehicle_id']}",
-                parse_mode='Markdown', reply_markup=build_main_menu(user_id))
-        else:
-            await update.message.reply_text(MSG["error_google"], reply_markup=build_main_menu(user_id))
+        logger.info(f"[VEHICLE] Saving to Sheets...")
+        saved = sheets_handler.add_vehicle(vehicle_data)
+        logger.info(f"[VEHICLE] Sheets save result: {saved}")
+        
     except Exception:
-        logger.exception("Error saving vehicle")
-        await update.message.reply_text(MSG["error_generic"], reply_markup=build_main_menu(user_id))
+        logger.exception("[VEHICLE] Error saving vehicle")
+    
+    # Отправляем сообщение БЕЗ Markdown - безопаснее
+    op_emoji = "🟢" if context.user_data.get('vehicle_op_type') == "Въезд" else "🔴"
+    if saved:
+        await update.message.reply_text(
+            f"✅ {MSG['operation_saved']}\n{op_emoji} {context.user_data.get('vehicle_op_type', '')}\n🚛 {context.user_data.get('vehicle_id', '')}",
+            reply_markup=build_main_menu(user_id))
+    else:
+        await update.message.reply_text(MSG["error_google"], reply_markup=build_main_menu(user_id))
     context.user_data.clear()
     return MAIN_MENU
 
@@ -441,10 +452,10 @@ async def handle_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photos_count = len(context.user_data['current_position'].get('temp_photos', []))
     summary = format_position_summary(pos_count, qty, photos_count)
     if pos_count >= config.MAX_POSITIONS_PER_OPERATION:
-        await update.message.reply_text(summary, parse_mode='Markdown')
+        await update.message.reply_text(summary)
         return await show_operation_summary(update, context)
     await update.message.reply_text(
-        summary, parse_mode='Markdown',
+        summary,
         reply_markup=build_keyboard([BTN["next_position"], BTN["finish"]], columns=1))
     return OPERATION_SUMMARY
 
@@ -458,9 +469,9 @@ async def handle_operation_summary_action(update: Update, context: ContextTypes.
 async def show_operation_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
     summary = format_operation_summary(data['op_type'], data['counterparty'], data['positions'], data['employee'])
+    # БЕЗ parse_mode='Markdown' - безопаснее!
     await update.message.reply_text(
-        f"{summary}\n{MSG.get('ask_final_comment', '💬 Комментарий?')}",
-        parse_mode='Markdown',
+        f"{summary}\n\n{MSG.get('ask_final_comment', '💬 Комментарий?')}",
         reply_markup=build_keyboard([BTN["add_comment"], BTN["save"]], columns=2))
     return OPERATION_GENERAL_COMMENT
 
@@ -482,12 +493,19 @@ async def save_operation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     data = context.user_data
     await update.message.reply_text("⏳ Сохранение... / กำลังบันทึก...", reply_markup=ReplyKeyboardRemove())
+    
+    saved_count = 0
+    operation_id = None
+    
     try:
         username = data["employee"]
         operation_id = f"OP-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{username}"
+        logger.info(f"[SAVE] Starting {operation_id}, positions: {len(data['positions'])}")
+        
         for idx, pos in enumerate(data["positions"]):
             photo_links = []
             if pos.get("temp_photos"):
+                logger.info(f"[SAVE] Uploading photos for position {idx+1}")
                 photo_links = drive_handler.upload_operation_photos(
                     pos["temp_photos"], operation_id, data["op_type"],
                     data.get("counterparty", ""), position_number=pos["number"])
@@ -512,12 +530,23 @@ async def save_operation(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Сотрудник": username,
                 "Статус": "NEW"
             }
-            sheets_handler.append_movement(row, is_first_position=(idx == 0))
-        await update.message.reply_text(
-            f"✅ *Сохранено! / บันทึกแล้ว!*\n🆔 `{operation_id}`\n{data['op_emoji']} {len(data['positions'])} поз.",
-            parse_mode="Markdown", reply_markup=build_main_menu(user_id))
+            logger.info(f"[SAVE] Appending position {idx+1} to Sheets")
+            if sheets_handler.append_movement(row, is_first_position=(idx == 0)):
+                saved_count += 1
+                logger.info(f"[SAVE] Position {idx+1} OK")
+            else:
+                logger.error(f"[SAVE] Position {idx+1} FAILED")
+        
+        logger.info(f"[SAVE] Done: {saved_count}/{len(data['positions'])}")
     except Exception:
-        logger.exception("Error saving operation")
+        logger.exception("[SAVE] Error saving operation")
+    
+    # БЕЗ Markdown - безопаснее
+    if saved_count > 0:
+        await update.message.reply_text(
+            f"✅ Сохранено! / บันทึกแล้ว!\n🆔 {operation_id}\n{data['op_emoji']} {saved_count} поз.",
+            reply_markup=build_main_menu(user_id))
+    else:
         await update.message.reply_text(MSG["error_generic"], reply_markup=build_main_menu(user_id))
     context.user_data.clear()
     return MAIN_MENU
